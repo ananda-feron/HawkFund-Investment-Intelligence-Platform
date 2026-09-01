@@ -21,7 +21,18 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-from app.ledger.types import ImportBatchStatus, TransactionStatus, TransactionType
+from app.ledger.types import (
+    ImportBatchStatus,
+    ImportRecordStatus,
+    TransactionStatus,
+    TransactionType,
+)
+from app.snapshots.types import (
+    CostBasisPersistenceStatus,
+    ReconciliationKind,
+    ReconciliationStatus,
+    SnapshotStatus,
+)
 
 
 class Fund(Base):
@@ -222,4 +233,207 @@ class ImportConflict(Base):
             "incoming_payload_hash",
             name="uq_import_conflicts_evidence",
         ),
+    )
+
+
+class ImportRecord(Base):
+    __tablename__ = "import_records"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    import_batch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("import_batches.id", ondelete="CASCADE")
+    )
+    row_number: Mapped[int] = mapped_column()
+    source_locator: Mapped[str] = mapped_column(String(255))
+    raw_payload: Mapped[dict[str, Any]] = mapped_column(JSON)
+    normalized_payload: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    raw_payload_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[ImportRecordStatus] = mapped_column(
+        SqlEnum(ImportRecordStatus, native_enum=False, length=16)
+    )
+    transaction_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("transactions.id", ondelete="RESTRICT")
+    )
+    import_conflict_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("import_conflicts.id", ondelete="RESTRICT")
+    )
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_message: Mapped[str | None] = mapped_column(String(1000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("import_batch_id", "row_number", name="uq_import_records_batch_row"),
+        CheckConstraint("row_number > 0", name="ck_import_records_positive_row"),
+        CheckConstraint("length(raw_payload_hash) = 64", name="ck_import_records_hash"),
+    )
+
+
+class AuditEvent(Base):
+    __tablename__ = "audit_events"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    actor_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+    action: Mapped[str] = mapped_column(String(80))
+    entity_type: Mapped[str] = mapped_column(String(80))
+    entity_id: Mapped[UUID] = mapped_column()
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    details: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+
+class PortfolioSnapshot(Base):
+    __tablename__ = "portfolio_snapshots"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    account_id: Mapped[UUID | None] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    revision: Mapped[int] = mapped_column()
+    status: Mapped[SnapshotStatus] = mapped_column(
+        SqlEnum(SnapshotStatus, native_enum=False, length=16)
+    )
+    calculation_version: Mapped[str] = mapped_column(String(64))
+    canonical_input_hash: Mapped[str] = mapped_column(String(64))
+    canonical_state: Mapped[dict[str, Any]] = mapped_column(JSON)
+    applied_transaction_count: Mapped[int] = mapped_column()
+    last_applied_transaction_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("transactions.id", ondelete="RESTRICT")
+    )
+    supersedes_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("portfolio_snapshots.id", ondelete="RESTRICT")
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("revision > 0", name="ck_snapshots_positive_revision"),
+        CheckConstraint("applied_transaction_count >= 0", name="ck_snapshots_nonnegative_count"),
+        CheckConstraint("length(canonical_input_hash) = 64", name="ck_snapshots_hash"),
+    )
+
+
+class SnapshotCash(Base):
+    __tablename__ = "snapshot_cash"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("portfolio_snapshots.id", ondelete="CASCADE")
+    )
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    currency: Mapped[str] = mapped_column(String(3))
+    amount: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "account_id", "currency", name="uq_snapshot_cash"),
+        CheckConstraint("currency = 'USD'", name="ck_snapshot_cash_usd"),
+    )
+
+
+class SnapshotPosition(Base):
+    __tablename__ = "snapshot_positions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("portfolio_snapshots.id", ondelete="CASCADE")
+    )
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    quantity: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    total_cost_basis: Mapped[Decimal | None] = mapped_column(Numeric(28, 4))
+    average_cost: Mapped[Decimal | None] = mapped_column(Numeric(28, 8))
+    cost_basis_status: Mapped[CostBasisPersistenceStatus] = mapped_column(
+        SqlEnum(CostBasisPersistenceStatus, native_enum=False, length=16)
+    )
+    source_transaction_ids: Mapped[list[str]] = mapped_column(JSON)
+
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "account_id", "instrument_id", name="uq_snapshot_position"),
+        CheckConstraint("quantity > 0", name="ck_snapshot_position_quantity"),
+        CheckConstraint(
+            "(cost_basis_status = 'KNOWN' AND total_cost_basis IS NOT NULL "
+            "AND average_cost IS NOT NULL) OR "
+            "(cost_basis_status = 'UNKNOWN' AND total_cost_basis IS NULL "
+            "AND average_cost IS NULL)",
+            name="ck_snapshot_position_basis_status",
+        ),
+    )
+
+
+class ReconciliationObservation(Base):
+    __tablename__ = "reconciliation_observations"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    account_id: Mapped[UUID] = mapped_column(ForeignKey("accounts.id", ondelete="RESTRICT"))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    kind: Mapped[ReconciliationKind] = mapped_column(
+        SqlEnum(ReconciliationKind, native_enum=False, length=16)
+    )
+    instrument_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("instruments.id", ondelete="RESTRICT")
+    )
+    reported_value: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    currency: Mapped[str] = mapped_column(String(3))
+    source: Mapped[str] = mapped_column(String(64))
+    external_id: Mapped[str] = mapped_column(String(160))
+    import_batch_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("import_batches.id", ondelete="RESTRICT")
+    )
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "fund_id", "source", "external_id", name="uq_reconciliation_observation_source"
+        ),
+        CheckConstraint("currency = 'USD'", name="ck_reconciliation_observation_usd"),
+        CheckConstraint(
+            "(kind = 'CASH' AND instrument_id IS NULL) OR "
+            "(kind = 'POSITION' AND instrument_id IS NOT NULL AND reported_value >= 0)",
+            name="ck_reconciliation_observation_kind",
+        ),
+    )
+
+
+class ReconciliationRun(Base):
+    __tablename__ = "reconciliation_runs"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("portfolio_snapshots.id", ondelete="RESTRICT")
+    )
+    tolerance: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    evidence_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[ReconciliationStatus] = mapped_column(
+        SqlEnum(ReconciliationStatus, native_enum=False, length=16)
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    __table_args__ = (
+        UniqueConstraint("snapshot_id", "tolerance", "evidence_hash", name="uq_reconciliation_run"),
+        CheckConstraint("tolerance >= 0", name="ck_reconciliation_tolerance"),
+        CheckConstraint("length(evidence_hash) = 64", name="ck_reconciliation_evidence_hash"),
+    )
+
+
+class ReconciliationItem(Base):
+    __tablename__ = "reconciliation_items"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    reconciliation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("reconciliation_runs.id", ondelete="CASCADE")
+    )
+    observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("reconciliation_observations.id", ondelete="RESTRICT")
+    )
+    expected_value: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    reported_value: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    difference: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    tolerance: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    status: Mapped[ReconciliationStatus] = mapped_column(
+        SqlEnum(ReconciliationStatus, native_enum=False, length=16)
+    )
+
+    __table_args__ = (
+        UniqueConstraint("reconciliation_run_id", "observation_id", name="uq_reconciliation_item"),
     )

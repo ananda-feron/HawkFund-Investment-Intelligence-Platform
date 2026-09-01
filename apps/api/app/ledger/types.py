@@ -24,3 +24,12 @@ class ImportBatchStatus(str, Enum):
     COMPLETED = "COMPLETED"
     COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
     FAILED = "FAILED"
+
+
+class ImportRecordStatus(str, Enum):
+    RECEIVED = "RECEIVED"
+    NORMALIZED = "NORMALIZED"
+    POSTED = "POSTED"
+    DUPLICATE = "DUPLICATE"
+    CONFLICT = "CONFLICT"
+    REJECTED = "REJECTED"
