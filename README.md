@@ -2,7 +2,7 @@
 
 Portfolio Intelligence & Risk Platform for the SUNY New Paltz Hawk Fund.
 
-This repository is currently at **Phase 0: infrastructure baseline**. It contains no portfolio, risk, research, scenario, decision, or AI features.
+Phase 0 infrastructure is complete. **Phase 1 Sprint 1** adds the append-only transaction-ledger foundation; portfolio reconstruction, risk, research, scenarios, decisions, and AI remain unimplemented.
 
 ## Prerequisites
 
@@ -47,7 +47,7 @@ make clean-volumes  # delete local Docker data volumes
 
 The Phase 0 fixture loader creates:
 
-- one SUNY New Paltz Hawk Fund record;
+- one SUNY New Paltz Hawk Fund record and one primary account;
 - three roles and one development user per role;
 - four reference instruments: AAPL, MSFT, NVDA, and SPY.
 
@@ -84,6 +84,6 @@ infra/docker/          container documentation and future overrides
 .github/workflows/     continuous integration
 ```
 
-## Phase boundary
+## Current phase boundary
 
-Phase 0 proves that a clean checkout starts, migrates, seeds, and passes the same checks used in CI. Business-domain implementation begins in Phase 1 only.
+Phase 1 Sprint 1 provides persistence, validation, idempotency, conflict evidence, opening-balance rules, and append-only correction behavior. It does not derive holdings, cash, cost basis, or snapshots; those belong to Sprint 2.

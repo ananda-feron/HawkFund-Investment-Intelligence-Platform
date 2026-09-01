@@ -1,4 +1,4 @@
-"""Load deterministic Phase 0 bootstrap fixtures.
+"""Load deterministic development bootstrap fixtures.
 
 The loader is idempotent: rows use stable UUIDs and PostgreSQL upserts.
 """
@@ -11,6 +11,7 @@ from sqlalchemy import create_engine, text
 from app.config import get_settings
 
 FUND_ID = UUID("10000000-0000-4000-8000-000000000001")
+ACCOUNT_ID = UUID("50000000-0000-4000-8000-000000000001")
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 ROLES = [
@@ -114,7 +115,22 @@ def load() -> None:
                     "currency": currency,
                 },
             )
-    print("Loaded deterministic Phase 0 fixtures: 1 fund, 3 users, 3 roles, 4 instruments.")
+        connection.execute(
+            text("""
+                INSERT INTO accounts (id, fund_id, code, name, currency, created_at)
+                VALUES (:id, :fund_id, :code, :name, :currency, :created_at)
+                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+            """),
+            {
+                "id": ACCOUNT_ID,
+                "fund_id": FUND_ID,
+                "code": "PRIMARY",
+                "name": "Primary Brokerage",
+                "currency": "USD",
+                "created_at": CREATED_AT,
+            },
+        )
+    print("Loaded deterministic fixtures: 1 fund, 1 account, 3 users, 3 roles, 4 instruments.")
 
 
 if __name__ == "__main__":

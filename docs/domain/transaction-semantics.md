@@ -1,6 +1,6 @@
 # Transaction Domain Semantics
 
-Status: Proposed Phase 1 contract  
+Status: Accepted for Phase 1 Sprint 1
 Scope: Long-only, single-currency portfolio ledger  
 Base currency: USD  
 
@@ -492,16 +492,27 @@ Mutation commands for direct entry, import, and correction must be designed sepa
 11. Rebuilding a snapshot produces the same canonical content hash.
 12. A reported balance mismatch creates a reconciliation breach without altering the ledger.
 
-## 20. Implementation gate
+## 20. Accepted decisions and implementation gate
 
-Before creating the Phase 1 SQLAlchemy models or Alembic migration:
+Accepted on 2026-09-01:
 
-- review and accept this transaction-type matrix;
-- confirm moving weighted-average cost as the Phase 1 cost-basis convention;
-- confirm effective-time and tie-break ordering;
-- confirm reversal-based correction semantics;
-- confirm that negative holdings are blocked while negative cash is warned;
-- confirm the import idempotency namespace;
-- convert the required test scenarios into named test cases.
+- Moving weighted-average cost is the Phase 1 cost-basis convention.
+- Corrections append a reversal and, when needed, a replacement; economic fields are never edited.
+- Negative holdings are blocked. Negative cash is retained and surfaced as a warning.
+- `(fund_id, source, external_id)` is the import identity. Changed content under the same identity is a conflict and never an update.
+- Unknown opening cost basis remains unknown and is never represented as zero.
+- `effective_at`, `recorded_at`, then transaction UUID is part of the engine's deterministic ordering contract.
 
-Until those decisions are accepted, the database schema and domain engine remain intentionally unimplemented.
+The ledger-schema gate is now satisfied. The portfolio-engine gate remains closed until Sprint 1 persistence and validation tests pass.
+
+Before implementing the Phase 1 portfolio engine:
+
+- the transaction schema migration must upgrade and downgrade cleanly;
+- valid transactions must persist and invalid field combinations must fail;
+- duplicate imports must be idempotent;
+- conflicting duplicates must be retained as conflicts without mutation;
+- opening-balance uniqueness must be enforced;
+- reversal tests must prove original economics remain unchanged;
+- Sprint 1 tests must pass in CI.
+
+Until those checks pass, the portfolio engine remains intentionally unimplemented.
