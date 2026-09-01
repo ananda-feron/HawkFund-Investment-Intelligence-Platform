@@ -2,9 +2,10 @@
 
 Portfolio Intelligence & Risk Platform for the SUNY New Paltz Hawk Fund.
 
-Phase 0 infrastructure and Phase 1's portfolio system of record are complete. Phase 2 adds
-provider-neutral, append-only market data and deterministic point-in-time valuation. Risk,
-research, scenarios, decisions, and AI remain unimplemented.
+Phase 0 infrastructure, Phase 1's portfolio system of record, and Phase 2 market valuation are
+complete. Phase 3 adds deterministic portfolio analytics, benchmark-relative statistics,
+point-in-time exposure, historical risk metrics, and versioned policy controls. Research,
+scenarios, decisions, and AI remain unimplemented.
 
 ## Prerequisites
 
@@ -51,7 +52,8 @@ The Phase 0 fixture loader creates:
 
 - one SUNY New Paltz Hawk Fund record and one primary account;
 - three roles and one development user per role;
-- four reference instruments and primary ticker identifiers: AAPL, MSFT, NVDA, and SPY.
+- four reference instruments with primary ticker identifiers and classifications;
+- one versioned Hawk Fund base risk policy with technology and position concentration limits.
 
 All IDs and timestamps are stable, and rerunning the fixture loader is safe. No position or transaction data is created.
 
@@ -88,10 +90,10 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Phase 2 adds security identifiers, provider abstraction, immutable price batches and observations,
-conflict evidence, cutoff-safe quote selection, stale-data detection, market/position/portfolio
-value, and moving-average unrealized and realized trade P&L. Historical valuation composes those
-prices with Phase 1 ledger reconstruction. See
-`docs/domain/market-data-valuation.md` for exact semantics.
+Phase 3 adds cash-flow-adjusted and cumulative returns, volatility, Sharpe ratio, drawdown,
+benchmark comparison, basic attribution, sector/asset/geographic exposures, position weights, top
+holdings, concentration, beta, historical VaR, expected shortfall, tracking error, and explainable
+policy breaches. See `docs/domain/portfolio-analytics-risk.md` for exact conventions.
 
-It deliberately adds no live vendor integration, API, dashboard, risk, scenarios, or AI.
+It deliberately adds no live vendor integration, API, dashboard, factor risk, stress scenarios,
+optimization, or AI.

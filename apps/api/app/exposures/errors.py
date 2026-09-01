@@ -1,0 +1,2 @@
+class ExposureError(ValueError):
+    pass

@@ -32,6 +32,7 @@ from app.market_data.types import (
     MarketDataBatchStatus,
     PriceType,
 )
+from app.risk.policy import PolicyEvaluationStatus, PolicyOperator
 from app.snapshots.types import (
     CostBasisPersistenceStatus,
     ReconciliationKind,
@@ -546,4 +547,109 @@ class MarketPriceConflict(Base):
         ),
         CheckConstraint("incoming_price > 0", name="ck_market_price_conflict_positive"),
         CheckConstraint("incoming_currency = 'USD'", name="ck_market_price_conflict_usd"),
+    )
+
+
+class InstrumentClassificationRecord(Base):
+    __tablename__ = "instrument_classifications"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    sector: Mapped[str] = mapped_column(String(80))
+    asset_class: Mapped[str] = mapped_column(String(80))
+    geography: Mapped[str] = mapped_column(String(80))
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    source: Mapped[str] = mapped_column(String(64))
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "effective_from", name="uq_classification_effective"),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_to > effective_from", name="ck_classification_range"
+        ),
+    )
+
+
+class RiskPolicy(Base):
+    __tablename__ = "risk_policies"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    name: Mapped[str] = mapped_column(String(160))
+    version: Mapped[int] = mapped_column()
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    __table_args__ = (
+        UniqueConstraint("fund_id", "name", "version", name="uq_risk_policy_version"),
+        CheckConstraint("version > 0", name="ck_risk_policy_version"),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_to > effective_from", name="ck_risk_policy_range"
+        ),
+    )
+
+
+class RiskPolicyRule(Base):
+    __tablename__ = "risk_policy_rules"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    policy_id: Mapped[UUID] = mapped_column(ForeignKey("risk_policies.id", ondelete="RESTRICT"))
+    metric_key: Mapped[str] = mapped_column(String(160))
+    operator: Mapped[PolicyOperator] = mapped_column(
+        SqlEnum(PolicyOperator, native_enum=False, length=8)
+    )
+    threshold: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    unit: Mapped[str] = mapped_column(String(32))
+    explanation_template: Mapped[str] = mapped_column(String(500))
+
+    __table_args__ = (
+        UniqueConstraint("policy_id", "metric_key", name="uq_risk_policy_rule_metric"),
+        CheckConstraint("threshold >= 0", name="ck_risk_policy_rule_threshold"),
+    )
+
+
+class RiskEvaluation(Base):
+    __tablename__ = "risk_evaluations"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    policy_id: Mapped[UUID] = mapped_column(ForeignKey("risk_policies.id", ondelete="RESTRICT"))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    input_hash: Mapped[str] = mapped_column(String(64))
+    calculation_version: Mapped[str] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("policy_id", "as_of", "input_hash", name="uq_risk_evaluation_input"),
+        CheckConstraint("length(input_hash) = 64", name="ck_risk_evaluation_hash"),
+    )
+
+
+class RiskEvaluationItem(Base):
+    __tablename__ = "risk_evaluation_items"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    evaluation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("risk_evaluations.id", ondelete="CASCADE")
+    )
+    rule_id: Mapped[UUID] = mapped_column(ForeignKey("risk_policy_rules.id", ondelete="RESTRICT"))
+    status: Mapped[PolicyEvaluationStatus] = mapped_column(
+        SqlEnum(PolicyEvaluationStatus, native_enum=False, length=16)
+    )
+    observed_value: Mapped[Decimal | None] = mapped_column(Numeric(28, 12))
+    threshold: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    breach_amount: Mapped[Decimal | None] = mapped_column(Numeric(28, 12))
+    unit: Mapped[str] = mapped_column(String(32))
+    explanation: Mapped[str] = mapped_column(String(1000))
+
+    __table_args__ = (
+        UniqueConstraint("evaluation_id", "rule_id", name="uq_risk_evaluation_rule"),
+        CheckConstraint("threshold >= 0", name="ck_risk_evaluation_threshold"),
+        CheckConstraint(
+            "breach_amount IS NULL OR breach_amount >= 0", name="ck_risk_evaluation_breach"
+        ),
     )

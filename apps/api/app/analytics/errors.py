@@ -1,0 +1,2 @@
+class AnalyticsError(ValueError):
+    pass

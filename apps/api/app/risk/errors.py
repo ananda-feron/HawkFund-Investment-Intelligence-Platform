@@ -1,0 +1,2 @@
+class RiskError(ValueError):
+    pass
