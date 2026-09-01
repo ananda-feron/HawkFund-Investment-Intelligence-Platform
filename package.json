@@ -1,0 +1,14 @@
+{
+  "name": "hawkfund-intelligence",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": ["apps/web"],
+  "scripts": {
+    "dev:web": "npm --workspace apps/web run dev",
+    "lint:web": "npm --workspace apps/web run lint",
+    "typecheck:web": "npm --workspace apps/web run typecheck",
+    "test:web": "npm --workspace apps/web run test",
+    "build:web": "npm --workspace apps/web run build"
+  },
+  "engines": {"node": ">=22"}
+}

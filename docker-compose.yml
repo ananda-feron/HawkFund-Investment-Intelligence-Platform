@@ -1,0 +1,82 @@
+name: hawkfund
+
+services:
+  postgres:
+    image: postgres:17.2-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-hawkfund}
+      POSTGRES_USER: ${POSTGRES_USER:-hawkfund}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-hawkfund}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4.2-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-hawkfund}:${POSTGRES_PASSWORD:-hawkfund}@postgres:5432/${POSTGRES_DB:-hawkfund}
+      REDIS_URL: redis://redis:6379/0
+      WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    volumes:
+      - ./apps/api:/app
+      - ./db:/db
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health/ready')"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      target: development
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    volumes:
+      - ./apps/web:/workspace/apps/web
+      - web_next:/workspace/apps/web/.next
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:
+  web_next:
