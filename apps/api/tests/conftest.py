@@ -7,7 +7,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.db import Base
-from app.models import Account, Fund, ImportBatch, ImportBatchStatus, Instrument
+from app.market_data.types import IdentifierScheme
+from app.models import Account, Fund, ImportBatch, ImportBatchStatus, Instrument, SecurityIdentifier
 
 FUND_ID = UUID("10000000-0000-4000-8000-000000000001")
 ACCOUNT_ID = UUID("50000000-0000-4000-8000-000000000001")
@@ -39,6 +40,16 @@ def session() -> Generator[Session, None, None]:
                     exchange="NASDAQ",
                     currency="USD",
                     is_active=True,
+                ),
+                SecurityIdentifier(
+                    id=UUID("41000000-0000-4000-8000-000000000001"),
+                    instrument_id=INSTRUMENT_ID,
+                    scheme=IdentifierScheme.TICKER,
+                    value="AAPL",
+                    provider="",
+                    valid_from=None,
+                    valid_to=None,
+                    is_primary=True,
                 ),
             ]
         )

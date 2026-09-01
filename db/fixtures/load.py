@@ -52,6 +52,11 @@ INSTRUMENTS = [
     ),
 ]
 
+SECURITY_IDENTIFIERS = [
+    (UUID(f"41000000-0000-4000-8000-00000000000{index}"), instrument[0], instrument[1])
+    for index, instrument in enumerate(INSTRUMENTS, start=1)
+]
+
 
 def load() -> None:
     engine = create_engine(get_settings().database_url)
@@ -115,6 +120,17 @@ def load() -> None:
                     "currency": currency,
                 },
             )
+        for identifier_id, instrument_id, ticker in SECURITY_IDENTIFIERS:
+            connection.execute(
+                text("""
+                    INSERT INTO security_identifiers
+                        (id, instrument_id, scheme, value, provider,
+                         valid_from, valid_to, is_primary)
+                    VALUES (:id, :instrument_id, 'TICKER', :ticker, '', NULL, NULL, true)
+                    ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value
+                """),
+                {"id": identifier_id, "instrument_id": instrument_id, "ticker": ticker},
+            )
         connection.execute(
             text("""
                 INSERT INTO accounts (id, fund_id, code, name, currency, created_at)
@@ -130,7 +146,10 @@ def load() -> None:
                 "created_at": CREATED_AT,
             },
         )
-    print("Loaded deterministic fixtures: 1 fund, 1 account, 3 users, 3 roles, 4 instruments.")
+    print(
+        "Loaded deterministic fixtures: 1 fund, 1 account, 3 users, "
+        "3 roles, 4 instruments and identifiers."
+    )
 
 
 if __name__ == "__main__":

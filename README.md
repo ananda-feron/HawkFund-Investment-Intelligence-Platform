@@ -2,7 +2,9 @@
 
 Portfolio Intelligence & Risk Platform for the SUNY New Paltz Hawk Fund.
 
-Phase 0 infrastructure is complete. Phase 1 now includes the append-only transaction ledger, pure deterministic reconstruction, CSV import provenance, immutable snapshot revisions, and reconciliation. Valuation, risk, research, scenarios, decisions, and AI remain unimplemented.
+Phase 0 infrastructure and Phase 1's portfolio system of record are complete. Phase 2 adds
+provider-neutral, append-only market data and deterministic point-in-time valuation. Risk,
+research, scenarios, decisions, and AI remain unimplemented.
 
 ## Prerequisites
 
@@ -49,7 +51,7 @@ The Phase 0 fixture loader creates:
 
 - one SUNY New Paltz Hawk Fund record and one primary account;
 - three roles and one development user per role;
-- four reference instruments: AAPL, MSFT, NVDA, and SPY.
+- four reference instruments and primary ticker identifiers: AAPL, MSFT, NVDA, and SPY.
 
 All IDs and timestamps are stable, and rerunning the fixture loader is safe. No position or transaction data is created.
 
@@ -86,4 +88,10 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Sprints 1.3 and 1.4 add row-level import evidence, idempotent ingestion, durable snapshot revisions, replay verification, reported-balance observations, discrepancy detection, and audit events. They deliberately add no API, dashboard, market valuation, risk, scenarios, or AI.
+Phase 2 adds security identifiers, provider abstraction, immutable price batches and observations,
+conflict evidence, cutoff-safe quote selection, stale-data detection, market/position/portfolio
+value, and moving-average unrealized and realized trade P&L. Historical valuation composes those
+prices with Phase 1 ledger reconstruction. See
+`docs/domain/market-data-valuation.md` for exact semantics.
+
+It deliberately adds no live vendor integration, API, dashboard, risk, scenarios, or AI.

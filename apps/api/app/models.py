@@ -27,6 +27,11 @@ from app.ledger.types import (
     TransactionStatus,
     TransactionType,
 )
+from app.market_data.types import (
+    IdentifierScheme,
+    MarketDataBatchStatus,
+    PriceType,
+)
 from app.snapshots.types import (
     CostBasisPersistenceStatus,
     ReconciliationKind,
@@ -436,4 +441,109 @@ class ReconciliationItem(Base):
 
     __table_args__ = (
         UniqueConstraint("reconciliation_run_id", "observation_id", name="uq_reconciliation_item"),
+    )
+
+
+class SecurityIdentifier(Base):
+    __tablename__ = "security_identifiers"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    scheme: Mapped[IdentifierScheme] = mapped_column(
+        SqlEnum(IdentifierScheme, native_enum=False, length=16)
+    )
+    value: Mapped[str] = mapped_column(String(64))
+    provider: Mapped[str] = mapped_column(String(64), default="")
+    valid_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    valid_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    is_primary: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    __table_args__ = (
+        UniqueConstraint("scheme", "value", "provider", name="uq_security_identifier"),
+        CheckConstraint(
+            "valid_to IS NULL OR valid_from IS NULL OR valid_to > valid_from",
+            name="ck_identifier_range",
+        ),
+    )
+
+
+class MarketDataBatch(Base):
+    __tablename__ = "market_data_batches"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    provider: Mapped[str] = mapped_column(String(64))
+    dataset: Mapped[str] = mapped_column(String(64))
+    request_hash: Mapped[str] = mapped_column(String(64))
+    status: Mapped[MarketDataBatchStatus] = mapped_column(
+        SqlEnum(MarketDataBatchStatus, native_enum=False, length=32)
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    inserted_count: Mapped[int] = mapped_column(default=0)
+    duplicate_count: Mapped[int] = mapped_column(default=0)
+    conflict_count: Mapped[int] = mapped_column(default=0)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "provider", "dataset", "request_hash", name="uq_market_data_batch_request"
+        ),
+        CheckConstraint("length(request_hash) = 64", name="ck_market_data_batch_hash"),
+        CheckConstraint(
+            "inserted_count >= 0 AND duplicate_count >= 0 AND conflict_count >= 0",
+            name="ck_market_data_batch_counts",
+        ),
+    )
+
+
+class MarketPrice(Base):
+    __tablename__ = "market_prices"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    batch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("market_data_batches.id", ondelete="RESTRICT")
+    )
+    provider: Mapped[str] = mapped_column(String(64))
+    price_type: Mapped[PriceType] = mapped_column(SqlEnum(PriceType, native_enum=False, length=24))
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    price: Mapped[Decimal] = mapped_column(Numeric(28, 8))
+    currency: Mapped[str] = mapped_column(String(3))
+    source_identifier: Mapped[str] = mapped_column(String(64))
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
+
+    __table_args__ = (
+        UniqueConstraint(
+            "instrument_id",
+            "provider",
+            "price_type",
+            "observed_at",
+            name="uq_market_price_observation",
+        ),
+        CheckConstraint("price > 0", name="ck_market_price_positive"),
+        CheckConstraint("currency = 'USD'", name="ck_market_price_usd"),
+    )
+
+
+class MarketPriceConflict(Base):
+    __tablename__ = "market_price_conflicts"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    batch_id: Mapped[UUID] = mapped_column(
+        ForeignKey("market_data_batches.id", ondelete="RESTRICT")
+    )
+    existing_price_id: Mapped[UUID] = mapped_column(
+        ForeignKey("market_prices.id", ondelete="RESTRICT")
+    )
+    incoming_price: Mapped[Decimal] = mapped_column(Numeric(28, 8))
+    incoming_currency: Mapped[str] = mapped_column(String(3))
+    incoming_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "batch_id", "existing_price_id", "incoming_price", name="uq_market_price_conflict"
+        ),
+        CheckConstraint("incoming_price > 0", name="ck_market_price_conflict_positive"),
+        CheckConstraint("incoming_currency = 'USD'", name="ck_market_price_conflict_usd"),
     )
