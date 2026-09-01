@@ -1,6 +1,5 @@
 from datetime import date, datetime
 from decimal import Decimal
-from enum import Enum
 from typing import Any
 from uuid import UUID
 
@@ -22,31 +21,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
-
-
-class TransactionType(str, Enum):
-    BUY = "BUY"
-    SELL = "SELL"
-    CASH_DEPOSIT = "CASH_DEPOSIT"
-    CASH_WITHDRAWAL = "CASH_WITHDRAWAL"
-    DIVIDEND = "DIVIDEND"
-    FEE = "FEE"
-    OPENING_CASH = "OPENING_CASH"
-    OPENING_POSITION = "OPENING_POSITION"
-    REVERSAL = "REVERSAL"
-
-
-class TransactionStatus(str, Enum):
-    POSTED = "POSTED"
-    REVERSED = "REVERSED"
-
-
-class ImportBatchStatus(str, Enum):
-    RECEIVED = "RECEIVED"
-    PROCESSING = "PROCESSING"
-    COMPLETED = "COMPLETED"
-    COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
-    FAILED = "FAILED"
+from app.ledger.types import ImportBatchStatus, TransactionStatus, TransactionType
 
 
 class Fund(Base):

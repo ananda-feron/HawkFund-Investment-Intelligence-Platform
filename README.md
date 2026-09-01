@@ -2,7 +2,7 @@
 
 Portfolio Intelligence & Risk Platform for the SUNY New Paltz Hawk Fund.
 
-Phase 0 infrastructure is complete. **Phase 1 Sprint 1** adds the append-only transaction-ledger foundation; portfolio reconstruction, risk, research, scenarios, decisions, and AI remain unimplemented.
+Phase 0 infrastructure is complete. Phase 1 Sprint 1 provides the append-only transaction ledger, and **Phase 1 Sprint 2** provides pure deterministic portfolio reconstruction. Snapshot persistence, valuation, risk, research, scenarios, decisions, and AI remain unimplemented.
 
 ## Prerequisites
 
@@ -86,4 +86,4 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Phase 1 Sprint 1 provides persistence, validation, idempotency, conflict evidence, opening-balance rules, and append-only correction behavior. It does not derive holdings, cash, cost basis, or snapshots; those belong to Sprint 2.
+Phase 1 Sprint 2 reconstructs point-in-time cash, holdings, and moving weighted-average cost basis in memory from immutable ledger-domain records. It deliberately adds no read API, dashboard, valuation, durable snapshots, risk, scenarios, or AI.

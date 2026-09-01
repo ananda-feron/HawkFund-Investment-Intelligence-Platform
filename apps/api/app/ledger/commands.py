@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from app.models import TransactionType
+from app.ledger.types import TransactionType
 
 
 @dataclass(frozen=True, slots=True)

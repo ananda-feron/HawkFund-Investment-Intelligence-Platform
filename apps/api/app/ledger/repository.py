@@ -3,7 +3,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Transaction, TransactionStatus, TransactionType
+from app.ledger.types import TransactionStatus, TransactionType
+from app.models import Transaction
 
 
 class TransactionRepository:

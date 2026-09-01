@@ -1,6 +1,6 @@
 from app.ledger.commands import CreateTransaction
 from app.ledger.errors import TransactionValidationError
-from app.models import TransactionType
+from app.ledger.types import TransactionType
 
 TRADE_TYPES = {TransactionType.BUY, TransactionType.SELL}
 CASH_AMOUNT_TYPES = {

@@ -11,13 +11,12 @@ from sqlalchemy.orm import Session
 from app.ledger.commands import CreateTransaction
 from app.ledger.errors import OpeningBalanceError, ReversalError, TransactionValidationError
 from app.ledger.repository import TransactionRepository
+from app.ledger.types import TransactionStatus, TransactionType
 from app.ledger.validation import validate_transaction
 from app.models import (
     ImportBatch,
     ImportConflict,
     Transaction,
-    TransactionStatus,
-    TransactionType,
 )
 
 

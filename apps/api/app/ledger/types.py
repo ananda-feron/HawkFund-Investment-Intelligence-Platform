@@ -1,0 +1,26 @@
+from enum import Enum
+
+
+class TransactionType(str, Enum):
+    BUY = "BUY"
+    SELL = "SELL"
+    CASH_DEPOSIT = "CASH_DEPOSIT"
+    CASH_WITHDRAWAL = "CASH_WITHDRAWAL"
+    DIVIDEND = "DIVIDEND"
+    FEE = "FEE"
+    OPENING_CASH = "OPENING_CASH"
+    OPENING_POSITION = "OPENING_POSITION"
+    REVERSAL = "REVERSAL"
+
+
+class TransactionStatus(str, Enum):
+    POSTED = "POSTED"
+    REVERSED = "REVERSED"
+
+
+class ImportBatchStatus(str, Enum):
+    RECEIVED = "RECEIVED"
+    PROCESSING = "PROCESSING"
+    COMPLETED = "COMPLETED"
+    COMPLETED_WITH_ERRORS = "COMPLETED_WITH_ERRORS"
+    FAILED = "FAILED"
