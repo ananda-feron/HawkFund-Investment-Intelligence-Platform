@@ -33,6 +33,7 @@ from app.market_data.types import (
     PriceType,
 )
 from app.risk.policy import PolicyEvaluationStatus, PolicyOperator
+from app.scenarios.types import ScenarioKind, ShockTargetType, ShockUnit
 from app.snapshots.types import (
     CostBasisPersistenceStatus,
     ReconciliationKind,
@@ -651,5 +652,123 @@ class RiskEvaluationItem(Base):
         CheckConstraint("threshold >= 0", name="ck_risk_evaluation_threshold"),
         CheckConstraint(
             "breach_amount IS NULL OR breach_amount >= 0", name="ck_risk_evaluation_breach"
+        ),
+    )
+
+
+class ScenarioDefinitionRecord(Base):
+    __tablename__ = "scenario_definitions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    name: Mapped[str] = mapped_column(String(160))
+    version: Mapped[int] = mapped_column()
+    kind: Mapped[ScenarioKind] = mapped_column(SqlEnum(ScenarioKind, native_enum=False, length=16))
+    description: Mapped[str] = mapped_column(String(1000))
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_by_user_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"))
+
+    __table_args__ = (
+        UniqueConstraint("fund_id", "name", "version", name="uq_scenario_version"),
+        CheckConstraint("version > 0", name="ck_scenario_version"),
+    )
+
+
+class ScenarioShockRecord(Base):
+    __tablename__ = "scenario_shocks"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    scenario_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scenario_definitions.id", ondelete="RESTRICT")
+    )
+    target_type: Mapped[ShockTargetType] = mapped_column(
+        SqlEnum(ShockTargetType, native_enum=False, length=16)
+    )
+    target: Mapped[str] = mapped_column(String(160))
+    magnitude: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    unit: Mapped[ShockUnit] = mapped_column(SqlEnum(ShockUnit, native_enum=False, length=24))
+    sequence: Mapped[int] = mapped_column()
+
+    __table_args__ = (
+        UniqueConstraint("scenario_id", "sequence", name="uq_scenario_shock_sequence"),
+        CheckConstraint("sequence > 0", name="ck_scenario_shock_sequence"),
+    )
+
+
+class InstrumentRiskSensitivity(Base):
+    __tablename__ = "instrument_risk_sensitivities"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    effective_from: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    rate_duration: Mapped[Decimal | None] = mapped_column(Numeric(28, 12))
+    factor_loadings: Mapped[dict[str, str]] = mapped_column(JSON)
+    source: Mapped[str] = mapped_column(String(64))
+    source_metadata: Mapped[dict[str, Any]] = mapped_column(JSON)
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("instrument_id", "effective_from", name="uq_sensitivity_effective"),
+        CheckConstraint(
+            "effective_to IS NULL OR effective_to > effective_from", name="ck_sensitivity_range"
+        ),
+        CheckConstraint(
+            "rate_duration IS NULL OR rate_duration >= 0", name="ck_sensitivity_duration"
+        ),
+    )
+
+
+class ScenarioRun(Base):
+    __tablename__ = "scenario_runs"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    scenario_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scenario_definitions.id", ondelete="RESTRICT")
+    )
+    policy_id: Mapped[UUID] = mapped_column(ForeignKey("risk_policies.id", ondelete="RESTRICT"))
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    canonical_input_hash: Mapped[str] = mapped_column(String(64))
+    calculation_version: Mapped[str] = mapped_column(String(64))
+    baseline_value: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    projected_value: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    pnl_impact: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    portfolio_return_impact: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    benchmark_scenario_return: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    result_summary: Mapped[dict[str, Any]] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id", "as_of", "canonical_input_hash", name="uq_scenario_run_input"
+        ),
+        CheckConstraint("length(canonical_input_hash) = 64", name="ck_scenario_run_hash"),
+        CheckConstraint(
+            "baseline_value > 0 AND projected_value > 0", name="ck_scenario_run_values"
+        ),
+    )
+
+
+class ScenarioPositionResultRecord(Base):
+    __tablename__ = "scenario_position_results"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    scenario_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scenario_runs.id", ondelete="CASCADE")
+    )
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    baseline_market_value: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    projected_market_value: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    return_impact: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    pnl_impact: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    contribution_evidence: Mapped[list[dict[str, str]]] = mapped_column(JSON)
+
+    __table_args__ = (
+        UniqueConstraint("scenario_run_id", "instrument_id", name="uq_scenario_position_result"),
+        CheckConstraint(
+            "baseline_market_value >= 0 AND projected_market_value >= 0",
+            name="ck_scenario_position_values",
         ),
     )

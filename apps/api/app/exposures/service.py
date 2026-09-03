@@ -20,14 +20,28 @@ class ExposureService:
 
     def calculate(self, valuation: ValuationResult, top_n: int = 10) -> ExposureResult:
         instrument_ids = {item.instrument_id for item in valuation.positions}
+        classifications = self.classifications_at(instrument_ids, valuation.as_of)
+        positions = tuple(
+            PositionExposureInput(item.instrument_id, item.market_value)
+            for item in valuation.positions
+        )
+        return ExposureEngine().calculate(
+            positions, valuation.cash_value, classifications, top_n=top_n
+        )
+
+    def classifications_at(
+        self, instrument_ids: set[UUID], as_of: datetime
+    ) -> dict[UUID, InstrumentClassification]:
+        if not instrument_ids:
+            return {}
         rows = self.session.scalars(
             select(InstrumentClassificationRecord)
             .where(
                 InstrumentClassificationRecord.instrument_id.in_(instrument_ids),
-                InstrumentClassificationRecord.effective_from <= valuation.as_of,
+                InstrumentClassificationRecord.effective_from <= as_of,
                 or_(
                     InstrumentClassificationRecord.effective_to.is_(None),
-                    InstrumentClassificationRecord.effective_to > valuation.as_of,
+                    InstrumentClassificationRecord.effective_to > as_of,
                 ),
             )
             .order_by(
@@ -48,13 +62,7 @@ class ExposureService:
                     self._aware(row.effective_to) if row.effective_to else None,
                 ),
             )
-        positions = tuple(
-            PositionExposureInput(item.instrument_id, item.market_value)
-            for item in valuation.positions
-        )
-        return ExposureEngine().calculate(
-            positions, valuation.cash_value, classifications, top_n=top_n
-        )
+        return classifications
 
     @staticmethod
     def _aware(value: datetime) -> datetime:

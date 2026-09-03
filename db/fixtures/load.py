@@ -3,6 +3,7 @@
 The loader is idempotent: rows use stable UUIDs and PostgreSQL upserts.
 """
 
+import json
 from datetime import UTC, datetime
 from decimal import Decimal
 from uuid import UUID
@@ -14,6 +15,9 @@ from app.config import get_settings
 FUND_ID = UUID("10000000-0000-4000-8000-000000000001")
 ACCOUNT_ID = UUID("50000000-0000-4000-8000-000000000001")
 RISK_POLICY_ID = UUID("a0000000-0000-4000-8000-000000000001")
+SECURITY_STRESS_ID = UUID("b1000000-0000-4000-8000-000000000001")
+HISTORICAL_STRESS_ID = UUID("b1000000-0000-4000-8000-000000000002")
+FACTOR_STRESS_ID = UUID("b1000000-0000-4000-8000-000000000003")
 CREATED_AT = datetime(2026, 1, 1, tzinfo=UTC)
 
 ROLES = [
@@ -217,6 +221,160 @@ def load() -> None:
                     "recorded_at": CREATED_AT,
                 },
             )
+        for scenario_id, name, kind, description, source_metadata in (
+            (
+                SECURITY_STRESS_ID,
+                "Security Selloff",
+                "HYPOTHETICAL",
+                "AAPL -20%, MSFT -15%, and SPY -10%.",
+                {},
+            ),
+            (
+                HISTORICAL_STRESS_ID,
+                "Historical Equity Crisis Proxy",
+                "HISTORICAL",
+                "Illustrative broad-market and technology shocks; not a calibrated replay.",
+                {"methodology": "illustrative_proxy", "historical_label": "equity_crisis"},
+            ),
+            (
+                FACTOR_STRESS_ID,
+                "Rates and Growth Stress",
+                "HYPOTHETICAL",
+                "A 100 bp rate increase and a -15% Growth factor movement.",
+                {},
+            ),
+        ):
+            connection.execute(
+                text("""
+                    INSERT INTO scenario_definitions
+                        (id, fund_id, name, version, kind, description, source_metadata,
+                         created_at, created_by_user_id)
+                    VALUES
+                        (:id, :fund_id, :name, 1, :kind, :description,
+                         CAST(:source_metadata AS jsonb), :created_at, NULL)
+                    ON CONFLICT (id) DO NOTHING
+                """),
+                {
+                    "id": scenario_id,
+                    "fund_id": FUND_ID,
+                    "name": name,
+                    "kind": kind,
+                    "description": description,
+                    "source_metadata": json.dumps(source_metadata, sort_keys=True),
+                    "created_at": CREATED_AT,
+                },
+            )
+        shocks = (
+            (
+                "b2000000-0000-4000-8000-000000000001",
+                SECURITY_STRESS_ID,
+                "SECURITY",
+                str(INSTRUMENTS[0][0]),
+                "-0.20",
+                "RELATIVE_RETURN",
+                1,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000002",
+                SECURITY_STRESS_ID,
+                "SECURITY",
+                str(INSTRUMENTS[1][0]),
+                "-0.15",
+                "RELATIVE_RETURN",
+                2,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000003",
+                SECURITY_STRESS_ID,
+                "SECURITY",
+                str(INSTRUMENTS[3][0]),
+                "-0.10",
+                "RELATIVE_RETURN",
+                3,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000004",
+                HISTORICAL_STRESS_ID,
+                "MARKET",
+                "ALL",
+                "-0.30",
+                "RELATIVE_RETURN",
+                1,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000005",
+                HISTORICAL_STRESS_ID,
+                "SECTOR",
+                "Technology",
+                "-0.10",
+                "RELATIVE_RETURN",
+                2,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000006",
+                FACTOR_STRESS_ID,
+                "RATE",
+                "USD",
+                "0.01",
+                "YIELD_CHANGE",
+                1,
+            ),
+            (
+                "b2000000-0000-4000-8000-000000000007",
+                FACTOR_STRESS_ID,
+                "FACTOR",
+                "Growth",
+                "-0.15",
+                "FACTOR_MOVE",
+                2,
+            ),
+        )
+        for shock_id, scenario_id, target_type, target, magnitude, unit, sequence in shocks:
+            connection.execute(
+                text("""
+                    INSERT INTO scenario_shocks
+                        (id, scenario_id, target_type, target, magnitude, unit, sequence)
+                    VALUES
+                        (:id, :scenario_id, :target_type, :target, :magnitude, :unit, :sequence)
+                    ON CONFLICT (id) DO NOTHING
+                """),
+                {
+                    "id": UUID(shock_id),
+                    "scenario_id": scenario_id,
+                    "target_type": target_type,
+                    "target": target,
+                    "magnitude": Decimal(magnitude),
+                    "unit": unit,
+                    "sequence": sequence,
+                },
+            )
+        for index, (instrument_id, loading) in enumerate(
+            zip(
+                (item[0] for item in INSTRUMENTS),
+                ("1.10", "1.00", "1.40", "0.85"),
+                strict=True,
+            ),
+            start=1,
+        ):
+            connection.execute(
+                text("""
+                    INSERT INTO instrument_risk_sensitivities
+                        (id, instrument_id, effective_from, effective_to, rate_duration,
+                         factor_loadings, source, source_metadata, recorded_at)
+                    VALUES
+                        (:id, :instrument_id, :effective_from, NULL, NULL,
+                         CAST(:factor_loadings AS jsonb), 'fixture', CAST('{}' AS jsonb),
+                         :recorded_at)
+                    ON CONFLICT (id) DO NOTHING
+                """),
+                {
+                    "id": UUID(f"b3000000-0000-4000-8000-00000000000{index}"),
+                    "instrument_id": instrument_id,
+                    "effective_from": CREATED_AT,
+                    "factor_loadings": json.dumps({"Growth": loading}, sort_keys=True),
+                    "recorded_at": CREATED_AT,
+                },
+            )
         connection.execute(
             text("""
                 INSERT INTO accounts (id, fund_id, code, name, currency, created_at)
@@ -234,7 +392,7 @@ def load() -> None:
         )
     print(
         "Loaded deterministic fixtures: 1 fund, 1 account, 3 users, "
-        "3 roles, 4 instruments, classifications, and 1 versioned risk policy."
+        "3 roles, 4 instruments, classifications, 1 risk policy, and 3 scenarios."
     )
 
 
