@@ -125,6 +125,15 @@ jobs:
           ignore-unfixed: true
           exit-code: "1"
 
+  release-system:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate the composed stack and persistent database volume
+        run: ./scripts/validate-docker-release.sh
+      - name: Validate isolated PostgreSQL backup and restore
+        run: ./scripts/validate-local-recovery.sh
+
   performance-smoke:
     runs-on: ubuntu-latest
     steps:

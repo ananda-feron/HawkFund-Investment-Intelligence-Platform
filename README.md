@@ -105,3 +105,11 @@ immutable image tags, migration-before-rollout ordering, and ECS deployment roll
 Infrastructure is not provisioned automatically by cloning the repository. An AWS account,
 certificate/domain, remote Terraform state, GitHub environment approval rules, and a bootstrapped
 least-privilege deployment role are required. See `docs/operations/production-runbook.md`.
+
+## Release validation
+
+Release-candidate validation is feature-frozen and documented in
+[`docs/release-validation.md`](docs/release-validation.md). Run the deterministic cross-domain test
+with `make golden-path`; on a Docker-enabled host, also run `make docker-acceptance` and
+`make recovery-drill`. The final trust boundaries and evidence flow are shown in
+[`docs/architecture/system-architecture.md`](docs/architecture/system-architecture.md).

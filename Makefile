@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down logs migrate migrate-down fixtures check check-api check-web check-infra perf-smoke clean-volumes
+.PHONY: bootstrap up down logs migrate migrate-down fixtures check check-api check-web check-infra golden-path release-check docker-acceptance recovery-drill perf-smoke clean-volumes
 
 bootstrap:
 	docker compose up -d --build
@@ -38,6 +38,17 @@ check-web:
 check-infra:
 	terraform fmt -check -recursive infra/aws
 	cd infra/aws && terraform init -backend=false -input=false && terraform validate
+
+golden-path:
+	cd apps/api && pytest -q tests/integration/test_release_golden_path.py
+
+release-check: check golden-path
+
+docker-acceptance:
+	./scripts/validate-docker-release.sh
+
+recovery-drill:
+	./scripts/validate-local-recovery.sh
 
 perf-smoke:
 	python3 tests/performance/health_smoke.py
