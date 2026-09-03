@@ -6,7 +6,8 @@ Phase 0 infrastructure, Phase 1's portfolio system of record, and Phase 2 market
 complete. Phase 3 adds portfolio analytics and risk controls. Phase 4 adds non-mutating,
 deterministic scenarios and before/after stress comparisons. Phase 5 adds controlled investment
 proposals, fund-scoped authorization, liquidity policies, and immutable approval evidence. Research,
-trade execution, and AI remain unimplemented.
+trade execution, and write-capable AI remain unimplemented. Phase 6 adds a governed, read-only AI
+intelligence layer over deterministic portfolio services.
 
 ## Prerequisites
 
@@ -94,10 +95,12 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Phase 5 adds immutable proposal versions and lines, risk/scenario evidence binding, analyst/manager/
-advisor authorization, optimistic concurrency, review and approval history, policy severity,
-liquidity metrics, separation of duties, decision provenance, and append-only audit events. See
-`docs/domain/investment-governance.md` for exact controls.
+Phase 6 exposes six strict tools for holdings, exposures, risk, snapshots, non-persisting scenario
+previews, and policy breaches. Fund scope comes from the authenticated tool context rather than model
+arguments. Responses require successful application evidence; citations, tool inputs/results,
+hashes, refusals, and conversation history are stored as audit evidence. The provider adapter uses
+the Responses API without provider-side response storage.
 
-It deliberately adds no live vendor integration, authentication tokens, API/dashboard workflow,
-order generation, broker execution, e-signatures, optimization, or AI.
+It deliberately adds no API key, live provider call in fixtures or tests, direct SQL access for the
+model, assistant-written calculations, mutation tools, order generation, broker execution,
+e-signatures, or autonomous approvals. See `docs/domain/ai-intelligence.md` for the trust boundary.

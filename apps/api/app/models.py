@@ -20,6 +20,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.ai.types import AIMessageRole, ConversationStatus, ToolExecutionStatus
 from app.db import Base
 from app.governance.types import (
     ProposalAction,
@@ -955,4 +956,64 @@ class ProposalTransition(Base):
 
     __table_args__ = (
         CheckConstraint("resulting_row_version > 0", name="ck_proposal_transition_version"),
+    )
+
+
+class AIConversation(Base):
+    __tablename__ = "ai_conversations"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    actor_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    status: Mapped[ConversationStatus] = mapped_column(
+        SqlEnum(ConversationStatus, native_enum=False, length=16)
+    )
+    model: Mapped[str] = mapped_column(String(80))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class AIMessage(Base):
+    __tablename__ = "ai_messages"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    conversation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_conversations.id", ondelete="RESTRICT")
+    )
+    role: Mapped[AIMessageRole] = mapped_column(
+        SqlEnum(AIMessageRole, native_enum=False, length=16)
+    )
+    content: Mapped[str] = mapped_column(String(20000))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    citations: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    provider_response_id: Mapped[str | None] = mapped_column(String(160))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (CheckConstraint("length(content_hash) = 64", name="ck_ai_message_hash"),)
+
+
+class AIToolCall(Base):
+    __tablename__ = "ai_tool_calls"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    conversation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ai_conversations.id", ondelete="RESTRICT")
+    )
+    provider_call_id: Mapped[str] = mapped_column(String(160))
+    tool_name: Mapped[str] = mapped_column(String(80))
+    arguments: Mapped[dict[str, Any]] = mapped_column(JSON)
+    status: Mapped[ToolExecutionStatus] = mapped_column(
+        SqlEnum(ToolExecutionStatus, native_enum=False, length=16)
+    )
+    result: Mapped[dict[str, Any] | None] = mapped_column(JSON)
+    result_hash: Mapped[str | None] = mapped_column(String(64))
+    sources: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(String(2000))
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        UniqueConstraint("conversation_id", "provider_call_id", name="uq_ai_tool_call"),
+        CheckConstraint(
+            "result_hash IS NULL OR length(result_hash) = 64", name="ck_ai_tool_result_hash"
+        ),
     )

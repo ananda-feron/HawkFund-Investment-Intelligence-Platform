@@ -16,6 +16,7 @@ ROLE_PERMISSIONS: dict[GovernanceRole, frozenset[Permission]] = {
             Permission.SUBMIT_PROPOSAL,
             Permission.WITHDRAW_PROPOSAL,
             Permission.VIEW_GOVERNANCE,
+            Permission.USE_AI_ASSISTANT,
         }
     ),
     GovernanceRole.MANAGER: frozenset(
@@ -27,6 +28,7 @@ ROLE_PERMISSIONS: dict[GovernanceRole, frozenset[Permission]] = {
             Permission.APPROVE_PROPOSAL,
             Permission.REJECT_PROPOSAL,
             Permission.VIEW_GOVERNANCE,
+            Permission.USE_AI_ASSISTANT,
         }
     ),
     GovernanceRole.ADVISOR: frozenset(
@@ -34,6 +36,7 @@ ROLE_PERMISSIONS: dict[GovernanceRole, frozenset[Permission]] = {
             Permission.RECORD_REVIEW,
             Permission.REQUEST_CHANGES,
             Permission.VIEW_GOVERNANCE,
+            Permission.USE_AI_ASSISTANT,
         }
     ),
 }

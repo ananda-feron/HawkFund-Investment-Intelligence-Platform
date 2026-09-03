@@ -1,6 +1,6 @@
 # ADR 0005: AI remains a read-only explanatory boundary
 
-Status: Accepted for a later phase; no AI dependencies or code are implemented in Phase 0
+Status: Implemented in Phase 6
 
 ## Context
 
@@ -8,7 +8,10 @@ An assistant can help analysts query portfolio and research data, but it creates
 
 ## Decision
 
-The future assistant will access HawkFundOS through typed, authorized, read-only tools. It will explain deterministic application results and cite underlying records. It will not receive direct SQL access, calculate official financial metrics, modify portfolio data, approve proposals, or execute trades.
+The assistant accesses HawkFundOS through typed, authorized, read-only tools. It explains
+deterministic application results and the application attaches citations to underlying records. It
+does not receive direct SQL access, calculate official financial metrics, modify portfolio data,
+approve proposals, or execute trades.
 
 ## Alternatives
 
@@ -18,4 +21,5 @@ The future assistant will access HawkFundOS through typed, authorized, read-only
 
 ## Consequences
 
-Assistant tools must reuse normal authorization, answers require citations and as-of context, and evaluation must cover groundedness and prompt injection. AI work cannot begin before the portfolio and decision foundations exist.
+Assistant tools reuse normal authorization, answers require citations and as-of context, and tests
+cover groundedness, scope overrides, unavailable evidence, and prompt/tool injection.

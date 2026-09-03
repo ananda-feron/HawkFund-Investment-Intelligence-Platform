@@ -23,6 +23,7 @@ class Permission(str, Enum):
     REJECT_PROPOSAL = "REJECT_PROPOSAL"
     WITHDRAW_PROPOSAL = "WITHDRAW_PROPOSAL"
     VIEW_GOVERNANCE = "VIEW_GOVERNANCE"
+    USE_AI_ASSISTANT = "USE_AI_ASSISTANT"
 
 
 class ProposalStatus(str, Enum):

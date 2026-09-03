@@ -27,6 +27,7 @@ from app.scenarios.types import (
     BeforeAfterResult,
     InstrumentSensitivity,
     ScenarioDefinition,
+    ScenarioResult,
     ScenarioShock,
 )
 from app.valuation.types import ValuationResult
@@ -58,13 +59,8 @@ class ScenarioService:
         top_n: int = 10,
     ) -> ScenarioExecution:
         self._aware_required(created_at)
-        definition = self._definition(scenario_id, valuation.fund_id)
-        instrument_ids = {item.instrument_id for item in valuation.positions}
-        classifications = ExposureService(self.session).classifications_at(
-            instrument_ids, valuation.as_of
-        )
-        sensitivities = self._sensitivities(instrument_ids, valuation.as_of)
-        scenario = ScenarioEngine().apply(valuation, definition, classifications, sensitivities)
+        scenario = self.preview(scenario_id, valuation)
+        classifications = scenario.classifications
         returns = tuple(portfolio_returns)
         benchmark = tuple(benchmark_returns)
         policy = self.session.get(RiskPolicy, policy_id)
@@ -148,6 +144,15 @@ class ScenarioService:
             )
         self.session.commit()
         return ScenarioExecution(run.id, analysis)
+
+    def preview(self, scenario_id: UUID, valuation: ValuationResult) -> ScenarioResult:
+        definition = self._definition(scenario_id, valuation.fund_id)
+        instrument_ids = {item.instrument_id for item in valuation.positions}
+        classifications = ExposureService(self.session).classifications_at(
+            instrument_ids, valuation.as_of
+        )
+        sensitivities = self._sensitivities(instrument_ids, valuation.as_of)
+        return ScenarioEngine().apply(valuation, definition, classifications, sensitivities)
 
     def _definition(self, scenario_id: UUID, fund_id: UUID) -> ScenarioDefinition:
         record = self.session.get(ScenarioDefinitionRecord, scenario_id)
