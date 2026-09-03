@@ -4,8 +4,9 @@ Portfolio Intelligence & Risk Platform for the SUNY New Paltz Hawk Fund.
 
 Phase 0 infrastructure, Phase 1's portfolio system of record, and Phase 2 market valuation are
 complete. Phase 3 adds portfolio analytics and risk controls. Phase 4 adds non-mutating,
-deterministic scenarios and before/after stress comparisons. Research, trade decisions, and AI
-remain unimplemented.
+deterministic scenarios and before/after stress comparisons. Phase 5 adds controlled investment
+proposals, fund-scoped authorization, liquidity policies, and immutable approval evidence. Research,
+trade execution, and AI remain unimplemented.
 
 ## Prerequisites
 
@@ -53,7 +54,8 @@ The Phase 0 fixture loader creates:
 - one SUNY New Paltz Hawk Fund record and one primary account;
 - three roles and one development user per role;
 - four reference instruments with primary ticker identifiers and classifications;
-- one versioned Hawk Fund base risk policy with technology and position concentration limits.
+- one versioned Hawk Fund base risk policy with technology, position concentration, cash, and
+  portfolio-liquidity limits;
 - three versioned scenario definitions: security selloff, illustrative historical crisis proxy,
   and rates/growth-factor stress.
 
@@ -92,10 +94,10 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Phase 4 adds versioned security, market, sector, rate, factor, and historical-proxy shocks;
-position-level contribution evidence; projected valuation and P&L; exposure and sample-risk deltas;
-baseline/projected policy outcomes; and immutable, idempotent run records. See
-`docs/domain/scenario-stress-testing.md` for exact conventions.
+Phase 5 adds immutable proposal versions and lines, risk/scenario evidence binding, analyst/manager/
+advisor authorization, optimistic concurrency, review and approval history, policy severity,
+liquidity metrics, separation of duties, decision provenance, and append-only audit events. See
+`docs/domain/investment-governance.md` for exact controls.
 
-It deliberately adds no live vendor integration, API, dashboard, nonlinear instrument pricing,
-Monte Carlo simulation, trade/rebalancing proposals, optimization, or AI.
+It deliberately adds no live vendor integration, authentication tokens, API/dashboard workflow,
+order generation, broker execution, e-signatures, optimization, or AI.

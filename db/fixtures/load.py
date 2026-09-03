@@ -104,7 +104,7 @@ def load() -> None:
                 VALUES
                     (:id, :fund_id, 'Hawk Fund Base Policy', 1, :effective_from,
                      NULL, :created_at, NULL)
-                ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+                ON CONFLICT (id) DO NOTHING
             """),
             {
                 "id": RISK_POLICY_ID,
@@ -113,35 +113,57 @@ def load() -> None:
                 "created_at": CREATED_AT,
             },
         )
-        for rule_id, metric_key, threshold, explanation in (
+        for rule_id, metric_key, operator, threshold, severity, explanation in (
             (
                 UUID("a1000000-0000-4000-8000-000000000001"),
                 "sector.Technology",
+                "MAX",
                 Decimal("0.35"),
+                "BLOCKING",
                 "Technology exposure {observed}; policy limit {threshold}; breach {breach} {unit}",
             ),
             (
                 UUID("a1000000-0000-4000-8000-000000000002"),
                 "concentration.largest_position_weight",
+                "MAX",
                 Decimal("0.10"),
+                "BLOCKING",
                 "Largest position {observed}; policy limit {threshold}; breach {breach} {unit}",
+            ),
+            (
+                UUID("a1000000-0000-4000-8000-000000000003"),
+                "liquidity.cash_weight",
+                "MIN",
+                Decimal("0.05"),
+                "BLOCKING",
+                "Cash weight {observed}; minimum {threshold}; shortfall {breach} {unit}",
+            ),
+            (
+                UUID("a1000000-0000-4000-8000-000000000004"),
+                "liquidity.liquid_within_horizon_weight",
+                "MIN",
+                Decimal("0.80"),
+                "BLOCKING",
+                "Liquid weight {observed}; minimum {threshold}; shortfall {breach} {unit}",
             ),
         ):
             connection.execute(
                 text("""
                     INSERT INTO risk_policy_rules
                         (id, policy_id, metric_key, operator, threshold, unit,
-                         explanation_template)
+                         explanation_template, severity)
                     VALUES
-                        (:id, :policy_id, :metric_key, 'MAX', :threshold, 'ratio',
-                         :explanation)
-                    ON CONFLICT (id) DO UPDATE SET threshold = EXCLUDED.threshold
+                        (:id, :policy_id, :metric_key, :operator, :threshold, 'ratio',
+                         :explanation, :severity)
+                    ON CONFLICT (id) DO NOTHING
                 """),
                 {
                     "id": rule_id,
                     "policy_id": RISK_POLICY_ID,
                     "metric_key": metric_key,
+                    "operator": operator,
                     "threshold": threshold,
+                    "severity": severity,
                     "explanation": explanation,
                 },
             )

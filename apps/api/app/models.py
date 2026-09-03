@@ -21,6 +21,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+from app.governance.types import (
+    ProposalAction,
+    ProposalStatus,
+    ReviewRecommendation,
+    WorkflowAction,
+)
 from app.ledger.types import (
     ImportBatchStatus,
     ImportRecordStatus,
@@ -32,7 +38,7 @@ from app.market_data.types import (
     MarketDataBatchStatus,
     PriceType,
 )
-from app.risk.policy import PolicyEvaluationStatus, PolicyOperator
+from app.risk.policy import PolicyEvaluationStatus, PolicyOperator, PolicyRuleSeverity
 from app.scenarios.types import ScenarioKind, ShockTargetType, ShockUnit
 from app.snapshots.types import (
     CostBasisPersistenceStatus,
@@ -61,6 +67,28 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(160))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class Role(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    code: Mapped[str] = mapped_column(String(32), unique=True)
+    name: Mapped[str] = mapped_column(String(80))
+
+
+class UserRole(Base):
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), primary_key=True
+    )
+    role_id: Mapped[UUID] = mapped_column(
+        ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True
+    )
+    fund_id: Mapped[UUID] = mapped_column(
+        ForeignKey("funds.id", ondelete="CASCADE"), primary_key=True
+    )
 
 
 class Instrument(Base):
@@ -606,6 +634,10 @@ class RiskPolicyRule(Base):
     threshold: Mapped[Decimal] = mapped_column(Numeric(28, 12))
     unit: Mapped[str] = mapped_column(String(32))
     explanation_template: Mapped[str] = mapped_column(String(500))
+    severity: Mapped[PolicyRuleSeverity] = mapped_column(
+        SqlEnum(PolicyRuleSeverity, native_enum=False, length=16),
+        default=PolicyRuleSeverity.BLOCKING,
+    )
 
     __table_args__ = (
         UniqueConstraint("policy_id", "metric_key", name="uq_risk_policy_rule_metric"),
@@ -771,4 +803,156 @@ class ScenarioPositionResultRecord(Base):
             "baseline_market_value >= 0 AND projected_market_value >= 0",
             name="ck_scenario_position_values",
         ),
+    )
+
+
+class InvestmentProposal(Base):
+    __tablename__ = "investment_proposals"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    fund_id: Mapped[UUID] = mapped_column(ForeignKey("funds.id", ondelete="RESTRICT"))
+    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    status: Mapped[ProposalStatus] = mapped_column(
+        SqlEnum(ProposalStatus, native_enum=False, length=24)
+    )
+    current_version: Mapped[int] = mapped_column()
+    row_version: Mapped[int] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        CheckConstraint("current_version > 0", name="ck_proposal_current_version"),
+        CheckConstraint("row_version > 0", name="ck_proposal_row_version"),
+    )
+
+
+class ProposalVersion(Base):
+    __tablename__ = "proposal_versions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    proposal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("investment_proposals.id", ondelete="RESTRICT")
+    )
+    version: Mapped[int] = mapped_column()
+    title: Mapped[str] = mapped_column(String(200))
+    thesis: Mapped[str] = mapped_column(String(5000))
+    portfolio_input_hash: Mapped[str] = mapped_column(String(64))
+    portfolio_as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    content_hash: Mapped[str] = mapped_column(String(64))
+    created_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    supersedes_version_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("proposal_versions.id", ondelete="RESTRICT")
+    )
+
+    __table_args__ = (
+        UniqueConstraint("proposal_id", "version", name="uq_proposal_version"),
+        CheckConstraint("version > 0", name="ck_proposal_version"),
+        CheckConstraint("length(portfolio_input_hash) = 64", name="ck_proposal_portfolio_hash"),
+        CheckConstraint("length(content_hash) = 64", name="ck_proposal_content_hash"),
+    )
+
+
+class ProposalLine(Base):
+    __tablename__ = "proposal_lines"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    proposal_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("proposal_versions.id", ondelete="RESTRICT")
+    )
+    instrument_id: Mapped[UUID] = mapped_column(ForeignKey("instruments.id", ondelete="RESTRICT"))
+    action: Mapped[ProposalAction] = mapped_column(
+        SqlEnum(ProposalAction, native_enum=False, length=8)
+    )
+    current_weight: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    proposed_weight: Mapped[Decimal] = mapped_column(Numeric(28, 12))
+    estimated_notional: Mapped[Decimal] = mapped_column(Numeric(28, 4))
+    rationale: Mapped[str] = mapped_column(String(1000))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "proposal_version_id", "instrument_id", name="uq_proposal_line_instrument"
+        ),
+        CheckConstraint(
+            "current_weight >= 0 AND current_weight <= 1", name="ck_proposal_line_current_weight"
+        ),
+        CheckConstraint(
+            "proposed_weight >= 0 AND proposed_weight <= 1", name="ck_proposal_line_proposed_weight"
+        ),
+        CheckConstraint("estimated_notional >= 0", name="ck_proposal_line_notional"),
+    )
+
+
+class ProposalAnalysis(Base):
+    __tablename__ = "proposal_analyses"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    proposal_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("proposal_versions.id", ondelete="RESTRICT")
+    )
+    risk_evaluation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("risk_evaluations.id", ondelete="RESTRICT")
+    )
+    scenario_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("scenario_runs.id", ondelete="RESTRICT")
+    )
+    recorded_by_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    evidence_hash: Mapped[str] = mapped_column(String(64))
+
+    __table_args__ = (
+        UniqueConstraint(
+            "proposal_version_id", "evidence_hash", name="uq_proposal_analysis_evidence"
+        ),
+        CheckConstraint("length(evidence_hash) = 64", name="ck_proposal_analysis_hash"),
+    )
+
+
+class ProposalReview(Base):
+    __tablename__ = "proposal_reviews"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    proposal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("investment_proposals.id", ondelete="RESTRICT")
+    )
+    proposal_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("proposal_versions.id", ondelete="RESTRICT")
+    )
+    reviewer_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    reviewer_role: Mapped[str] = mapped_column(String(32))
+    recommendation: Mapped[ReviewRecommendation] = mapped_column(
+        SqlEnum(ReviewRecommendation, native_enum=False, length=16)
+    )
+    comment: Mapped[str] = mapped_column(String(2000))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+
+class ProposalTransition(Base):
+    __tablename__ = "proposal_transitions"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True)
+    proposal_id: Mapped[UUID] = mapped_column(
+        ForeignKey("investment_proposals.id", ondelete="RESTRICT")
+    )
+    proposal_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("proposal_versions.id", ondelete="RESTRICT")
+    )
+    action: Mapped[WorkflowAction] = mapped_column(
+        SqlEnum(WorkflowAction, native_enum=False, length=24)
+    )
+    from_status: Mapped[ProposalStatus | None] = mapped_column(
+        SqlEnum(ProposalStatus, native_enum=False, length=24)
+    )
+    to_status: Mapped[ProposalStatus] = mapped_column(
+        SqlEnum(ProposalStatus, native_enum=False, length=24)
+    )
+    actor_user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    actor_role: Mapped[str] = mapped_column(String(32))
+    reason: Mapped[str | None] = mapped_column(String(2000))
+    decision_provenance: Mapped[dict[str, Any]] = mapped_column(JSON)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    resulting_row_version: Mapped[int] = mapped_column()
+
+    __table_args__ = (
+        CheckConstraint("resulting_row_version > 0", name="ck_proposal_transition_version"),
     )

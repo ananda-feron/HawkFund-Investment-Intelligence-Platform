@@ -19,6 +19,11 @@ class PolicyEvaluationStatus(str, Enum):
     UNAVAILABLE = "UNAVAILABLE"
 
 
+class PolicyRuleSeverity(str, Enum):
+    BLOCKING = "BLOCKING"
+    WARNING = "WARNING"
+
+
 @dataclass(frozen=True, slots=True)
 class PolicyRuleInput:
     rule_id: UUID
