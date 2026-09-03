@@ -9,3 +9,7 @@
 **/node_modules
 outputs
 work
+*.tfstate
+*.tfstate.*
+.terraform
+infra/aws/*.tfvars

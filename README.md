@@ -7,7 +7,8 @@ complete. Phase 3 adds portfolio analytics and risk controls. Phase 4 adds non-m
 deterministic scenarios and before/after stress comparisons. Phase 5 adds controlled investment
 proposals, fund-scoped authorization, liquidity policies, and immutable approval evidence. Research,
 trade execution, and write-capable AI remain unimplemented. Phase 6 adds a governed, read-only AI
-intelligence layer over deterministic portfolio services.
+intelligence layer over deterministic portfolio services. Phase 7 adds production images, AWS
+infrastructure-as-code, deployment gates, observability, recovery guidance, and security controls.
 
 ## Prerequisites
 
@@ -95,12 +96,12 @@ infra/docker/          container documentation and future overrides
 
 ## Current phase boundary
 
-Phase 6 exposes six strict tools for holdings, exposures, risk, snapshots, non-persisting scenario
-previews, and policy breaches. Fund scope comes from the authenticated tool context rather than model
-arguments. Responses require successful application evidence; citations, tool inputs/results,
-hashes, refusals, and conversation history are stored as audit evidence. The provider adapter uses
-the Responses API without provider-side response storage.
+Phase 7 supplies hardened non-root production images and Terraform for an HTTPS ALB, private ECS
+Fargate services, encrypted RDS PostgreSQL, encrypted ElastiCache, Secrets Manager, ECR, CloudWatch,
+autoscaling, and alarms. CI validates code, migrations, Terraform, dependencies, containers, and
+CodeQL. Manual deployments use a protected GitHub environment, short-lived AWS OIDC credentials,
+immutable image tags, migration-before-rollout ordering, and ECS deployment rollback.
 
-It deliberately adds no API key, live provider call in fixtures or tests, direct SQL access for the
-model, assistant-written calculations, mutation tools, order generation, broker execution,
-e-signatures, or autonomous approvals. See `docs/domain/ai-intelligence.md` for the trust boundary.
+Infrastructure is not provisioned automatically by cloning the repository. An AWS account,
+certificate/domain, remote Terraform state, GitHub environment approval rules, and a bootstrapped
+least-privilege deployment role are required. See `docs/operations/production-runbook.md`.

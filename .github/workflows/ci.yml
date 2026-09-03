@@ -17,6 +17,7 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: npm audit --audit-level=high
       - run: npm run lint:web
       - run: npm run typecheck:web
       - run: npm run test:web
@@ -31,6 +32,7 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r apps/api/requirements-dev.txt
+      - run: pip-audit -r apps/api/requirements.txt
       - working-directory: apps/api
         run: ruff check app tests ../../db
       - working-directory: apps/api
@@ -75,3 +77,72 @@ jobs:
         run: alembic -c alembic.ini downgrade base
       - working-directory: apps/api
         run: alembic -c alembic.ini upgrade head
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v4.0.1
+        with:
+          terraform_version: "1.16.0"
+      - run: terraform fmt -check -recursive infra/aws
+      - working-directory: infra/aws
+        run: terraform init -backend=false -input=false
+      - working-directory: infra/aws
+        run: terraform validate
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          target: production
+          push: false
+          tags: hawkfund-api:test
+          load: true
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: hawkfund-api:test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          target: production
+          push: false
+          tags: hawkfund-web:test
+          load: true
+      - uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: hawkfund-web:test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+
+  performance-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r apps/api/requirements.txt
+      - name: Exercise liveness under bounded concurrency
+        run: |
+          cd apps/api
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 --no-access-log >/tmp/hawkfund-api.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid"' EXIT
+          for attempt in {1..20}; do
+            curl -fsS http://127.0.0.1:8000/health/live && break
+            sleep 1
+          done
+          cd ../..
+          python tests/performance/health_smoke.py --p95-ms 250

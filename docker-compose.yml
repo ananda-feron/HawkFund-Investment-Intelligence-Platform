@@ -3,6 +3,7 @@ name: hawkfund
 services:
   postgres:
     image: postgres:17.2-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-hawkfund}
       POSTGRES_USER: ${POSTGRES_USER:-hawkfund}
@@ -16,9 +17,15 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
 
   redis:
     image: redis:7.4.2-alpine
+    restart: unless-stopped
     command: ["redis-server", "--appendonly", "yes"]
     ports:
       - "${REDIS_PORT:-6379}:6379"
@@ -29,16 +36,26 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
+      target: development
+    restart: unless-stopped
     environment:
       APP_ENV: ${APP_ENV:-development}
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-hawkfund}:${POSTGRES_PASSWORD:-hawkfund}@postgres:5432/${POSTGRES_DB:-hawkfund}
       REDIS_URL: redis://redis:6379/0
       WEB_ORIGIN: ${WEB_ORIGIN:-http://localhost:3000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1,api}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      RELEASE: ${RELEASE:-development}
     ports:
       - "${API_PORT:-8000}:8000"
     volumes:
@@ -54,12 +71,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
       target: development
+    restart: unless-stopped
     environment:
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
@@ -75,6 +102,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
 volumes:
   postgres_data:

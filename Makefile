@@ -1,4 +1,4 @@
-.PHONY: bootstrap up down logs migrate migrate-down fixtures check check-api check-web clean-volumes
+.PHONY: bootstrap up down logs migrate migrate-down fixtures check check-api check-web check-infra perf-smoke clean-volumes
 
 bootstrap:
 	docker compose up -d --build
@@ -23,7 +23,7 @@ migrate-down:
 fixtures:
 	docker compose run --rm api python /db/fixtures/load.py
 
-check: check-api check-web
+check: check-api check-web check-infra
 
 check-api:
 	cd apps/api && ruff check app tests ../../db && ruff format --check app tests ../../db
@@ -34,6 +34,13 @@ check-web:
 	npm run lint:web
 	npm run typecheck:web
 	npm run test:web
+
+check-infra:
+	terraform fmt -check -recursive infra/aws
+	cd infra/aws && terraform init -backend=false -input=false && terraform validate
+
+perf-smoke:
+	python3 tests/performance/health_smoke.py
 
 clean-volumes:
 	docker compose down --volumes

@@ -1,0 +1,8 @@
+aws_region     = "us-east-1"
+environment    = "staging"
+certificate_arn = "arn:aws:acm:us-east-1:123456789012:certificate/replace-me"
+web_origin      = "https://hawkfund.example.edu"
+allowed_hosts   = "hawkfund.example.edu"
+api_image       = "123456789012.dkr.ecr.us-east-1.amazonaws.com/hawkfund-staging-api:sha-replace"
+web_image       = "123456789012.dkr.ecr.us-east-1.amazonaws.com/hawkfund-staging-web:sha-replace"
+alarm_email     = "operations@example.edu"

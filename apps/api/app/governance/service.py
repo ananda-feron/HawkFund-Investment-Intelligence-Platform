@@ -1,9 +1,11 @@
 import hashlib
 import json
 from datetime import UTC, datetime
+from typing import Any, cast
 from uuid import UUID, uuid4
 
 from sqlalchemy import select, update
+from sqlalchemy.engine import CursorResult
 from sqlalchemy.orm import Session
 
 from app.governance.authorization import AuthorizationService
@@ -456,20 +458,23 @@ class ProposalService:
         if self._utc(occurred_at) < self._utc(proposal.updated_at):
             raise InvalidWorkflowTransition("workflow timestamp precedes the prior transition")
         next_row_version = expected_row_version + 1
-        result = self.session.execute(
-            update(InvestmentProposal)
-            .where(
-                InvestmentProposal.id == proposal.id,
-                InvestmentProposal.row_version == expected_row_version,
-            )
-            .values(
-                status=status,
-                current_version=(
-                    proposal.current_version if current_version is None else current_version
-                ),
-                row_version=next_row_version,
-                updated_at=occurred_at,
-            )
+        result = cast(
+            CursorResult[Any],
+            self.session.execute(
+                update(InvestmentProposal)
+                .where(
+                    InvestmentProposal.id == proposal.id,
+                    InvestmentProposal.row_version == expected_row_version,
+                )
+                .values(
+                    status=status,
+                    current_version=(
+                        proposal.current_version if current_version is None else current_version
+                    ),
+                    row_version=next_row_version,
+                    updated_at=occurred_at,
+                )
+            ),
         )
         if result.rowcount != 1:
             self.session.rollback()
